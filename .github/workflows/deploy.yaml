@@ -111,7 +111,7 @@ jobs:
         password: ${{ env.SERVER_PASSWORD }}
         port: ${{ secrets.SERVER_PORT }}
         script: |
-          cd "${{ secrets.SERVER_DEPLOY_PATH }}"
+          cd "${{ secrets.SERVER_PATH }}/backend"
           echo "yes" | php artisan migrate
           echo "yes" | php artisan cache:clear
 

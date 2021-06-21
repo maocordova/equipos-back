@@ -32,7 +32,7 @@ Route::group([
     });
 });
 
-// Route::apiResource('clientes', 'App\Http\Controllers\ClientesController');
+Route::apiResource('clientes', 'App\Http\Controllers\ClientesController');
 // Route::apiResource('ubicaciones', 'App\Http\Controllers\UbicacionesController');
 // Route::apiResource('impresoras', 'App\Http\Controllers\ImpresorasController');
 // Route::apiResource('computadoras', 'App\Http\Controllers\ComputadorasController');

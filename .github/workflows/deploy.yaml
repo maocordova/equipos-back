@@ -1,0 +1,140 @@
+name: Deploy Backend to Production
+
+on:
+  push:
+    branches: [ main, develop ]
+
+env:
+    SERVER_IP: ${{ secrets.SERVER_IP }}
+    SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+    LARAVEL_ENV: ${{ secrets.LARAVEL_ENV }}
+
+jobs:
+  create-deployment-artifact:
+    name: Create deployment artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Compile CSS and Javascript
+        run: |
+          npm install
+          npm run prod
+      - name: Configure PHP 7.4
+        uses: shivammathur/setup-php@master
+        with:
+          php-version: 7.4
+          extensions: mbstring, ctype, fileinfo, openssl, PDO, bcmath, json, tokenizer, xml
+
+      - name: Composer install
+        run: |
+          composer install --no-dev --no-interaction --prefer-dist
+      - name: Create deployment artifact
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: tar -czf "${GITHUB_SHA}".tar.gz --exclude=*.git --exclude=node_modules *
+
+      - name: Store artifact for distribution
+        uses: actions/upload-artifact@v2
+        with:
+          name: app-build
+          path: ${{ github.sha }}.tar.gz
+
+  prepare-release-on-servers:
+    name: "Prepare release"
+    runs-on: ubuntu-latest
+    needs: create-deployment-artifact
+    steps:
+      - name: Check Environment
+        run: | 
+          if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+            echo "Deploying to production"
+            echo "SERVER_IP=${{ secrets.SERVER_IP_PROD }}" >> $GITHUB_ENV
+            echo "SERVER_PASSWORD=${{ secrets.SERVER_PASSWORD_PROD }}" >> $GITHUB_ENV
+            echo "LARAVEL_ENV=${{ secrets.LARAVEL_ENV }}" >> $GITHUB_ENV
+          else
+            echo "Deploying to test"
+          fi    
+      - uses: actions/download-artifact@v2
+        with:
+          name: app-build
+
+      - name: Upload to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ env.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: ${{ github.sha }}.tar.gz
+          target: /tmp/artifacts
+
+      - name: Extract files and create directories
+        uses: appleboy/ssh-action@master
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          STORAGE_PATH: ${{ secrets.SERVER_PATH }}/storage
+          BASE_PATH: ${{ secrets.SERVER_PATH }}
+          LARAVEL_ENV: ${{ env.LARAVEL_ENV }}
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ env.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          envs: GITHUB_SHA,STORAGE_PATH,BASE_PATH,LARAVEL_ENV
+          script: |
+            # Create a new directory with the commit hash as the directory name
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p "${{ secrets.SERVER_PATH }}/backend"
+            # Extract the tar file into our release directory
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S tar xzf /tmp/artifacts/${GITHUB_SHA}.tar.gz -C "${{ secrets.SERVER_PATH }}/backend"
+            # Create Laravel storage directories and set permissions
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S rm -rf ${{ secrets.SERVER_PATH }}/backend/storage
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/{app,public,framework,logs}
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/framework/{cache,sessions,testing,views}
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S chmod -R 0777 ${{ secrets.SERVER_PATH }}/storage
+            # Link storage directory
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S ln -s -f $STORAGE_PATH "${{ secrets.SERVER_PATH }}/backend"
+            # Store the environment data
+            printf "%s" "$LARAVEL_ENV" > "${STORAGE_PATH}/.env"
+            # Link .env file
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S ln -s -f ${STORAGE_PATH}/.env "${{ secrets.SERVER_PATH }}/backend/"
+
+  run-after-release:
+    name: "Run migrations and clean cache"
+    runs-on: ubuntu-latest
+    needs: [ create-deployment-artifact, prepare-release-on-servers ]
+    steps:
+    - name: Run migrations and clean cache
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ env.SERVER_IP }}
+        username: ${{ secrets.SERVER_USERNAME }}
+        password: ${{ env.SERVER_PASSWORD }}
+        port: ${{ secrets.SERVER_PORT }}
+        script: |
+          cd "${{ secrets.SERVER_DEPLOY_PATH }}"
+          echo "yes" | php artisan migrate
+          echo "yes" | php artisan cache:clear
+
+  clean-up:
+    name: "Clean up"
+    runs-on: ubuntu-latest
+    needs: [ create-deployment-artifact, prepare-release-on-servers, run-after-release ]
+    steps:
+    - name: Check Environment
+      run: | 
+        if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+          echo "Deploying to production"
+          echo "SERVER_IP=${{ secrets.SERVER_IP_PROD }}" >> $GITHUB_ENV
+          echo "SERVER_PASSWORD=${{ secrets.SERVER_PASSWORD_PROD }}" >> $GITHUB_ENV
+        else
+          echo "Deploying to test"
+        fi          
+    - name: Run clean up
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ env.SERVER_IP }}
+        username: ${{ secrets.SERVER_USERNAME }}
+        password: ${{ env.SERVER_PASSWORD }}
+        port: ${{ secrets.SERVER_PORT }}
+        script: |
+          rm -rf /tmp/artifacts

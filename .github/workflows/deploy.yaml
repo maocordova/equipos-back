@@ -90,6 +90,7 @@ jobs:
             echo ${{ env.SERVER_PASSWORD }} | sudo -S rm -rf ${{ secrets.SERVER_PATH }}/backend/storage
             echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/{app,public,framework,logs}
             echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/framework/{cache,sessions,testing,views}
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/framework/cache/{data}
             # Link storage directory
             echo ${{ env.SERVER_PASSWORD }} | sudo -S ln -s -f $STORAGE_PATH "${{ secrets.SERVER_PATH }}/backend"
             # Store the environment data
@@ -97,9 +98,9 @@ jobs:
             # Link .env file
             echo ${{ env.SERVER_PASSWORD }} | sudo -S ln -s -f ${STORAGE_PATH}/.env "${{ secrets.SERVER_PATH }}/backend/"
             # Set permissions
-            echo ${{ env.SERVER_PASSWORD }} | sudo -S  chgrp -R www-data "${{ secrets.SERVER_PATH }}/backend/"
-            echo ${{ env.SERVER_PASSWORD }} | sudo -S  chgrp -R www-data "${{ secrets.SERVER_PATH }}/storage"
-            echo ${{ env.SERVER_PASSWORD }} | sudo -S chmod -R 0777 ${{ secrets.SERVER_PATH }}/storage
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S  chown -R root.www-data "${{ secrets.SERVER_PATH }}/backend/"
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S  chown -R root.www-data "${{ secrets.SERVER_PATH }}/storage"
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S chmod -R 0775 ${{ secrets.SERVER_PATH }}/storage
 
   run-after-release:
     name: "Run migrations and clean cache"

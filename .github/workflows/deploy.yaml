@@ -114,6 +114,7 @@ jobs:
           cd "${{ secrets.SERVER_PATH }}/backend"
           echo "yes" | php artisan migrate
           echo "yes" | php artisan cache:clear
+          echo ${{ env.SERVER_PASSWORD }} | sudo -S chmod -R 0777 ${{ secrets.SERVER_PATH }}/storage
 
   clean-up:
     name: "Clean up"

@@ -90,7 +90,7 @@ jobs:
             echo ${{ env.SERVER_PASSWORD }} | sudo -S rm -rf ${{ secrets.SERVER_PATH }}/backend/storage
             echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/{app,public,framework,logs}
             echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/framework/{cache,sessions,testing,views}
-            echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/framework/cache/{data}
+            echo ${{ env.SERVER_PASSWORD }} | sudo -S mkdir -p ${{ secrets.SERVER_PATH }}/storage/framework/cache/data
             # Link storage directory
             echo ${{ env.SERVER_PASSWORD }} | sudo -S ln -s -f $STORAGE_PATH "${{ secrets.SERVER_PATH }}/backend"
             # Store the environment data
